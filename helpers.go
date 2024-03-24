@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -66,14 +68,37 @@ func handlerGetAllChirps(w http.ResponseWriter, r *http.Request, db *DB) {
 }
 
 func handlerDeleteChirp(w http.ResponseWriter, r *http.Request, db *DB, ChirpID string) {
+	if r.Header.Get("Authorization") == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	authHeader := r.Header.Get("Authorization")
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 {
+		http.Error(w, "Invalid Authorization header", http.StatusUnauthorized)
+		return
+	}
+	tokenString := parts[1]
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return []byte(cfg.jwtSecret), nil
+	})
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if !token.Valid {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	toeknClaims := token.Claims.(jwt.MapClaims)
+
 	id, err := strconv.Atoi(ChirpID)
 	if err != nil {
 		http.Error(w, "Invalid ID", http.StatusBadRequest)
 		return
 	}
 	fmt.Printf("ID: %d\n", id)
-
-	if err := db.DeleteChirp(id); err != nil {
+	if err := db.DeleteChirp(id, toeknClaims["id"]); err != nil {
 		http.Error(w, "Failed to delete chirp", http.StatusInternalServerError)
 		return
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 )
 
@@ -91,12 +92,15 @@ func (db *DB) CreateChirp(chirp Chirp) error {
 	return err
 }
 
-func (db *DB) DeleteChirp(id int) error {
+func (db *DB) DeleteChirp(id int, author int) error {
 	db.mux.Lock()
 	defer db.mux.Unlock()
 
 	if _, exists := db.ChirpData[id]; !exists {
 		return fmt.Errorf("Chirp with ID %d does not exist", id)
+	}
+	if db.ChirpData[id].Author != strconv.Itoa(author) {
+		return fmt.Errorf("User with ID %d is not the author of chirp with ID %d", author, id)
 	}
 	delete(db.ChirpData, id)
 	return db.save("chirps")
