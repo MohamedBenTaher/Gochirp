@@ -17,6 +17,7 @@ import (
 type apiConfig struct {
 	fileserverHits int
 	jwtSecret      string
+	polkaSecret    string
 }
 type Chirp struct {
 	ID     int    `json:"id"`
@@ -47,6 +48,7 @@ func main() {
 	apiCfg := apiConfig{
 		fileserverHits: 0,
 		jwtSecret:      os.Getenv("JWT_SECRET"),
+		polkaSecret:    os.Getenv("POLKA_SECRET"),
 	}
 
 	mux := http.NewServeMux()
@@ -248,7 +250,20 @@ func (cfg *apiConfig) handlerLogin(db *DB) http.HandlerFunc {
 }
 
 func (cfg *apiConfig) handlerPolkaWebhooks(db *DB) http.HandlerFunc {
+
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		authHeader := r.Header.Get("Authorization")
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 {
+			http.Error(w, "Invalid Authorization header", http.StatusUnauthorized)
+			return
+		}
+		tokenString := parts[1]
+		if tokenString != cfg.polkaSecret {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 		var webhook Webhook
 		err := json.NewDecoder(r.Body).Decode(&webhook)
 		if err != nil {
