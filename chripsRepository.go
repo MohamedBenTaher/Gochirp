@@ -160,3 +160,14 @@ func (db *DB) GetAllUsers() []User {
 	}
 	return users
 }
+func (db *DB) GetUserByEmail(email string) (User, bool) {
+	db.mux.RLock()
+	defer db.mux.RUnlock()
+
+	for _, user := range db.UserData {
+		if user.Email == email {
+			return user, true
+		}
+	}
+	return User{}, false
+}

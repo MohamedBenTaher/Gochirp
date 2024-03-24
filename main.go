@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"strings"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type apiConfig struct {
@@ -43,6 +45,7 @@ func main() {
 	mux.HandleFunc("/api/chirp/", apiCfg.handlerChirp(chirpDB))
 	mux.HandleFunc("/api/users", apiCfg.handlerUsers(chirpDB))
 	mux.HandleFunc("/api/users/", apiCfg.handlerUsers(chirpDB))
+	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin(chirpDB))
 	corsMux := middlewareCors(mux)
 
 	srv := &http.Server{
@@ -129,5 +132,28 @@ func (cfg *apiConfig) handlerUsers(chirpDB *DB) http.HandlerFunc {
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
+	}
+}
+func (cfg *apiConfig) handlerLogin(db *DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var user User
+		err := json.NewDecoder(r.Body).Decode(&user)
+		if err != nil {
+			http.Error(w, "Invalid request payload", http.StatusBadRequest)
+			return
+		}
+		defer r.Body.Close()
+
+		storedUser, exists := db.GetUserByEmail(user.Email)
+		if !exists {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		err = bcrypt.CompareHashAndPassword([]byte(storedUser.Password), []byte(user.Password))
+		if err != nil {
+			http.Error(w, "Invalid password", http.StatusUnauthorized)
+			return
+		}
+		fmt.Println("User logged in")
 	}
 }
