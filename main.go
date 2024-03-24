@@ -15,13 +15,19 @@ type Chirp struct {
 	ID   int    `json:"id"`
 	Body string `json:"body"`
 }
+type User struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
 
 func main() {
 	const filepathRoot = "."
 	const port = "8080"
 	const chirpDBPath = "chirps.json"
-	db := NewDB(chirpDBPath)
-	db.load()
+	chirpDB := NewDB(chirpDBPath)
+	chirpDB.load()
 
 	apiCfg := apiConfig{
 		fileserverHits: 0,
@@ -33,8 +39,10 @@ func main() {
 	mux.HandleFunc("/admin/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("/api/reset", apiCfg.handlerReset)
 	mux.HandleFunc("POST /api/validate_chirp", apiCfg.handlerValidateChirp)
-	mux.HandleFunc("/api/chirp", apiCfg.handlerChirp(db))
-
+	mux.HandleFunc("/api/chirp", apiCfg.handlerChirp(chirpDB))
+	mux.HandleFunc("/api/chirp/", apiCfg.handlerChirp(chirpDB))
+	mux.HandleFunc("/api/users", apiCfg.handlerUsers(chirpDB))
+	mux.HandleFunc("/api/users/", apiCfg.handlerUsers(chirpDB))
 	corsMux := middlewareCors(mux)
 
 	srv := &http.Server{
@@ -92,18 +100,32 @@ func replaceProfanity(body string, profaneWords []string) string {
 	return body
 }
 
-func (cfg *apiConfig) handlerChirp(db *DB) http.HandlerFunc {
+func (cfg *apiConfig) handlerChirp(chirpDB *DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			idStr := r.URL.Query().Get("id")
-			if idStr == "" {
-				handlerGetAllChirps(w, r, db)
+			segments := strings.Split(r.URL.Path, "/")
+			if len(segments) > 3 {
+				id := segments[3]
+				handlerGetChirp(w, r, chirpDB, id)
 			} else {
-				handlerGetChirp(w, r, db)
+				handlerGetAllChirps(w, r, chirpDB)
 			}
 		case http.MethodPost:
-			handlerPostChirp(w, r, db)
+			handlerPostChirp(w, r, chirpDB)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+func (cfg *apiConfig) handlerUsers(chirpDB *DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			handlerGetUsers(w, r, chirpDB)
+		case http.MethodPost:
+			handlerPostUser(w, r, chirpDB)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
