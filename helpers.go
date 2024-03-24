@@ -67,7 +67,7 @@ func handlerGetAllChirps(w http.ResponseWriter, r *http.Request, db *DB) {
 	respondWithJSON(w, http.StatusOK, chirps)
 }
 
-func handlerDeleteChirp(w http.ResponseWriter, r *http.Request, db *DB, ChirpID string) {
+func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, r *http.Request, db *DB, ChirpID string) {
 	if r.Header.Get("Authorization") == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -98,7 +98,12 @@ func handlerDeleteChirp(w http.ResponseWriter, r *http.Request, db *DB, ChirpID 
 		return
 	}
 	fmt.Printf("ID: %d\n", id)
-	if err := db.DeleteChirp(id, toeknClaims["id"]); err != nil {
+	userID, ok := toeknClaims["id"].(float64)
+	if !ok {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+	if err := db.DeleteChirp(id, int(userID)); err != nil {
 		http.Error(w, "Failed to delete chirp", http.StatusInternalServerError)
 		return
 	}

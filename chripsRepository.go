@@ -175,3 +175,20 @@ func (db *DB) GetUserByEmail(email string) (User, bool) {
 	}
 	return User{}, false
 }
+func (db *DB) GetUserByID(id int) (User, bool) {
+	db.mux.RLock()
+	defer db.mux.RUnlock()
+
+	user, exists := db.UserData[id]
+	return user, exists
+}
+func (db *DB) UpdateUser(user User) error {
+	db.mux.Lock()
+	defer db.mux.Unlock()
+
+	if _, exists := db.UserData[user.ID]; !exists {
+		return fmt.Errorf("User with ID %d does not exist", user.ID)
+	}
+	db.UserData[user.ID] = user
+	return db.save("users")
+}

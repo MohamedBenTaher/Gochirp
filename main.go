@@ -24,10 +24,17 @@ type Chirp struct {
 	Author string `json:"author"`
 }
 type User struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	ID                int    `json:"id"`
+	Name              string `json:"name"`
+	Email             string `json:"email"`
+	Password          string `json:"password"`
+	IS_CHIRPY_PREMIUM bool   `json:"is_chirpy_premium"`
+}
+type Webhook struct {
+	Event string `json:"event"`
+	Data  struct {
+		UserID int `json:"user_id"`
+	} `json:"data"`
 }
 
 func main() {
@@ -54,6 +61,7 @@ func main() {
 	mux.Handle("/api/users/", apiCfg.authMiddleware(apiCfg.handlerUsers(chirpDB)))
 	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin(chirpDB))
 	mux.HandleFunc("POST /api/register", apiCfg.handlerRegister(chirpDB))
+	mux.HandleFunc("/api/polka/webhooks", apiCfg.handlerPolkaWebhooks(chirpDB))
 	corsMux := middlewareCors(mux)
 
 	srv := &http.Server{
@@ -158,7 +166,7 @@ func (cfg *apiConfig) handlerChirp(chirpDB *DB) http.HandlerFunc {
 				return
 			}
 			id := segments[3]
-			handlerDeleteChirp(w, r, chirpDB, id)
+			cfg.handlerDeleteChirp(w, r, chirpDB, id)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -237,4 +245,26 @@ func (cfg *apiConfig) handlerLogin(db *DB) http.HandlerFunc {
 		respondWithJSON(w, http.StatusOK, responsPayload)
 	}
 
+}
+
+func (cfg *apiConfig) handlerPolkaWebhooks(db *DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var webhook Webhook
+		err := json.NewDecoder(r.Body).Decode(&webhook)
+		if err != nil {
+			http.Error(w, "Invalid request payload", http.StatusBadRequest)
+			return
+		}
+		defer r.Body.Close()
+		if webhook.Event == "user.upgraded" {
+			user, exists := db.GetUserByID(webhook.Data.UserID)
+			if !exists {
+				http.Error(w, "User not found", http.StatusNotFound)
+				return
+			}
+			user.IS_CHIRPY_PREMIUM = true
+			db.UpdateUser(user)
+		}
+		respondWithJSON(w, http.StatusOK, webhook)
+	}
 }
